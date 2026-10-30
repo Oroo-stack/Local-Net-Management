@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetTrack — WiFi Subscription Manager</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');
+:root{
+  --bg:#0F1117;--surface:#181C27;--card:#1E2336;--border:#2A3050;--border2:#353D60;
+  --text:#E8EAFF;--muted:#7B84A3;--faint:#2A3050;
+  --accent:#4F8EF7;--accent-bg:#1A2545;
+  --green:#34C97B;--green-bg:#0D2A1C;--green-border:#1A4A30;
+  --amber:#F5A623;--amber-bg:#2A1E05;--amber-border:#4A3510;
+  --red:#F05C5C;--red-bg:#2A0D0D;--red-border:#4A1A1A;
+  --purple:#A78BFA;--purple-bg:#1E1A3A;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',system-ui,sans-serif;--r:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+/* Shell */
+.shell{display:flex;min-height:100vh}
+.sidebar{width:230px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;transition:width .16s ease}
+.main{flex:1;padding:28px 32px;overflow-x:hidden;min-width:0;transition:padding .16s ease}
+.sidebar-toggle{position:absolute;top:18px;right:-13px;width:26px;height:26px;border-radius:50%;background:var(--card);border:1px solid var(--border2);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;z-index:5;transition:transform .16s ease,color .12s,background .12s}
+.sidebar-toggle:hover{color:var(--text);background:var(--faint)}
+.sidebar.collapsed{width:64px}
+.sidebar.collapsed .sidebar-toggle{transform:rotate(180deg)}
+.sidebar.collapsed .logo{padding:20px 0 16px;text-align:center}
+.sidebar.collapsed .logo-text,
+.sidebar.collapsed .logo-sub,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .sync-text,
+.sidebar.collapsed .sidebar-footer{display:none}
+.sidebar.collapsed .nav-item{justify-content:center;padding:9px 0;gap:0}
+.sidebar.collapsed .sync-badge{justify-content:center;padding:8px}
+/* Sidebar */
+.logo{padding:20px 20px 16px;border-bottom:1px solid var(--border)}
+.logo-mark{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
+.logo-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.nav-section{padding:12px 0}
+.nav-label{padding:6px 20px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:13px;color:var(--muted);cursor:pointer;border-left:2px solid transparent;user-select:none;transition:color .12s,background .12s}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-bg)}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.sync-badge{padding:8px 14px;margin:8px 12px;border-radius:var(--r);font-size:11px;display:flex;align-items:center;gap:7px}
+.sync-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.s-ok{background:var(--green-bg);color:var(--green)}.s-ok .sync-dot{background:var(--green)}
+.s-err{background:var(--red-bg);color:var(--red)}.s-err .sync-dot{background:var(--red)}
+.s-warn{background:var(--amber-bg);color:var(--amber)}.s-warn .sync-dot{background:var(--amber)}
+.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);margin-top:auto}
+.ss-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+.ss-row span:first-child{color:var(--muted)}
+/* Page */
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;gap:12px;flex-wrap:wrap}
+.page-title{font-size:20px;font-weight:600}
+.page-sub{font-size:13px;color:var(--muted);margin-top:2px}
+.header-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r);font-size:13px;font-family:var(--sans);cursor:pointer;border:1px solid var(--border2);background:var(--card);color:var(--text);transition:background .12s;white-space:nowrap}
+.btn:hover{background:var(--faint)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#6a9ef8}
+.btn-green{background:var(--green);border-color:var(--green);color:#000}
+.btn-green:hover{background:#4dd98e}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn-ghost:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.btn-danger{border-color:var(--red);color:var(--red);background:transparent}
+.btn-danger:hover{background:var(--red-bg)}
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.kpi-label{font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.kpi-val{font-size:22px;font-weight:600}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}.purple{color:var(--purple)}
+/* Progress bar */
+.progress-wrap{margin-top:8px;background:var(--faint);border-radius:4px;height:5px;overflow:hidden}
+.progress-bar{height:100%;border-radius:4px;background:var(--green);transition:width .3s}
+/* Revenue split */
+.rev-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.rev-box{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.rev-box.green-box{border-color:var(--green-border);background:var(--green-bg)}
+.rev-box.amber-box{border-color:var(--amber-border);background:var(--amber-bg)}
+/* Filter */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.filter-bar input{flex:1;min-width:160px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none}
+.filter-bar input::placeholder{color:var(--muted)}
+.filter-bar input:focus{border-color:var(--accent)}
+.filter-btn{padding:7px 12px;border-radius:var(--r);font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);font-family:var(--sans);white-space:nowrap}
+.filter-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+/* Table */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+/* Floating scrollbar — mirrors whichever .table-wrap is on screen, pinned
+   to the bottom of the viewport instead of the bottom of the table, so it
+   doesn't get pushed below the fold on a long client list. */
+.floating-scrollbar{position:fixed;bottom:0;height:14px;overflow-x:auto;overflow-y:hidden;background:var(--surface);border-top:1px solid var(--border);z-index:60;display:none}
+.floating-scrollbar.show{display:block}
+.floating-scrollbar-inner{height:1px}
+.floating-scrollbar::-webkit-scrollbar{height:10px}
+.floating-scrollbar::-webkit-scrollbar-track{background:transparent}
+.floating-scrollbar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:6px}
+.floating-scrollbar::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:10px 14px;font-size:11px;font-weight:500;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.3px;background:var(--card)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:hover{background:rgba(255,255,255,.025)}
+tbody tr:last-child{border-bottom:none}
+td{padding:11px 14px;vertical-align:middle;white-space:nowrap}
+.house-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:600;background:var(--accent-bg);color:var(--accent);font-family:var(--mono)}
+.name-cell{font-weight:500}
+.mac-cell{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.5px}
+.row-actions{display:flex;gap:4px;opacity:0;transition:opacity .12s}
+tbody tr:hover .row-actions{opacity:1}
+/* Pills */
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.pill-paid{background:var(--green-bg);color:var(--green)}
+.pill-partial{background:var(--purple-bg);color:var(--purple)}
+.pill-overdue{background:var(--red-bg);color:var(--red)}
+.pill-pending{background:var(--amber-bg);color:var(--amber)}
+/* History */
+.history-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.h-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.h-months{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.h-chip{font-size:11px;padding:4px 8px;border-radius:4px;font-family:var(--mono);cursor:pointer;border:1px solid transparent;user-select:none}
+.h-chip:hover{opacity:.75}
+.h-chip.paid{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.h-chip.overdue{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.h-chip.pending{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+.h-chip.partial{background:var(--purple-bg);color:var(--purple)}
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;width:100%;max-width:540px;flex-shrink:0}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-full{grid-column:1/-1}
+.fg label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.fg input,.fg select{width:100%;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none}
+.fg input:focus,.fg select:focus{border-color:var(--accent)}
+.fg input::placeholder{color:var(--faint)}
+.fg select option{background:var(--card)}
+.err{font-size:11px;color:var(--red);margin-top:3px;min-height:15px}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+/* Device rows */
+.device-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+.device-row input{font-size:12px}
+.device-row .mac-inp{font-family:var(--mono);letter-spacing:.5px}
+.add-device-btn{font-size:12px;color:var(--accent);cursor:pointer;padding:6px 0;display:inline-flex;align-items:center;gap:4px}
+.add-device-btn:hover{text-decoration:underline}
+/* Payment modal */
+.pay-history{margin-bottom:14px}
+.pay-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.pay-row:last-child{border-bottom:none}
+.month-chip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.m-chip{padding:10px 6px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;font-family:var(--mono);cursor:pointer;text-align:center;line-height:1.6;transition:all .1s}
+.m-chip:hover{background:var(--faint)}
+.m-chip.sel-paid{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.m-chip.sel-partial{background:var(--purple-bg);border-color:var(--purple);color:var(--purple)}
+.m-chip.sel-overdue{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.m-chip.sel-pending{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+/* Down payment form */
+.downpay-form{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:14px}
+.downpay-title{font-size:12px;font-weight:500;margin-bottom:10px;color:var(--text)}
+.downpay-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.downpay-row input{font-size:13px}
+/* Settings */
+.settings-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.settings-title{font-weight:500;margin-bottom:10px;font-size:13px}
+/* Export */
+.export-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px}
+.export-card-text strong{display:block;margin-bottom:2px;font-size:13px}
+.export-card-text span{font-size:12px;color:var(--muted)}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--border2);border-radius:var(--r);padding:10px 16px;font-size:13px;z-index:999;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;max-width:300px}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{border-color:var(--red);color:var(--red)}
+/* Empty */
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:36px;margin-bottom:12px}
+.empty-title{font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px}
+@media(max-width:720px){
+  .sidebar{display:none}
+  .main{padding:16px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr}
+  .device-row{grid-template-columns:1fr;gap:6px}
+  .month-chip-grid{grid-template-columns:repeat(2,1fr)}
+  .downpay-row{grid-template-columns:1fr}
+}
+
+.history-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
+@media(max-width:480px){.history-grid{grid-template-columns:1fr}}
+.hist-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:14px}
+.hist-legend .lg{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.lg.paid,.hb-fill.paid{background:var(--green)}.lg.partial,.hb-fill.partial{background:var(--purple)}
+.lg.overdue,.hb-fill.overdue{background:var(--red)}.lg.pending,.hb-fill.pending{background:var(--amber)}
+.lg.na{background:var(--border)}
+.hb-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 12px}
+.hb-stats b{display:block;font-size:12px;font-weight:600}.hb-stats span{font-size:10px;color:var(--muted)}
+.hb-row{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end}
+.hb{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;min-width:0}
+.hb:hover{opacity:.75}.hb.na{cursor:default;opacity:.35}.hb.na:hover{opacity:.35}
+.hb-amt{font-size:9px;font-family:var(--mono);color:var(--muted);height:12px;line-height:12px}
+.hb-track{width:100%;max-width:22px;height:70px;background:var(--faint,var(--border));border-radius:3px;display:flex;align-items:flex-end;overflow:hidden}
+.hb-fill{width:100%;border-radius:3px 3px 0 0}
+.hb-m{font-size:9px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="shell">
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">◀</div>
+  <div class="logo">
+    <div class="logo-mark">📡<span class="logo-text"> NetTrack</span></div>
+    <div class="logo-sub">WiFi subscription manager</div>
+  </div>
+  <nav>
+    <div class="nav-section">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active" id="nav-clients" onclick="showView('clients')" title="Clients"><span class="nav-icon">⊞</span><span class="nav-text"> Clients</span></div>
+      <div class="nav-item" id="nav-revenue" onclick="showView('revenue')" title="Revenue"><span class="nav-icon">₂</span><span class="nav-text"> Revenue</span></div>
+      <div class="nav-item" id="nav-history" onclick="showView('history')" title="Payment history"><span class="nav-icon">◷</span><span class="nav-text"> Payment history</span></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">System</div>
+      <div class="nav-item" id="nav-export" onclick="showView('export')" title="Export"><span class="nav-icon">↓</span><span class="nav-text"> Export</span></div>
+      <div class="nav-item" id="nav-settings" onclick="showView('settings')" title="Settings"><span class="nav-icon">⚙</span><span class="nav-text"> Settings</span></div>
+    </div>
+  </nav>
+  <div class="sync-badge s-warn" id="sync-badge" title="Sync status">
+    <div class="sync-dot"></div><span id="sync-text">Not connected</span>
+  </div>
+  <div class="sidebar-footer" id="sidebar-footer"></div>
+</aside>
+
+<main class="main" id="main"></main>
+</div>
+
+<!-- Floating horizontal scrollbar for wide tables — see setupFloatingScrollbar() -->
+<div class="floating-scrollbar" id="floating-scrollbar"><div class="floating-scrollbar-inner" id="floating-scrollbar-inner"></div></div>
+
+
+<!-- Client Modal -->
+<div class="modal-overlay" id="client-modal">
+<div class="modal">
+  <div class="modal-title" id="modal-title">Add client</div>
+  <div class="form-grid">
+    <div class="fg form-full">
+      <label>Client status</label>
+      <select id="f-clientstatus" onchange="onClientStatusChange()">
+        <option value="active">Active — counts as a client and is billed</option>
+        <option value="deactivated">Deactivated — away / not paying; not counted</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label>House no. *</label>
+      <input type="text" id="f-house" placeholder="e.g. 3, B4, Block A">
+      <div class="err" id="e-house"></div>
+    </div>
+    <div class="fg">
+      <label>Contact / client name *</label>
+      <input type="text" id="f-contact" placeholder="e.g. John Kamau">
+      <div class="err" id="e-contact"></div>
+    </div>
+    <div class="fg">
+      <label>Phone</label>
+      <input type="text" id="f-phone" placeholder="0712 345 678">
+    </div>
+    <div class="fg">
+      <label>Monthly fee (KES) *</label>
+      <input type="number" id="f-fee" placeholder="2500" min="0">
+      <div class="err" id="e-fee"></div>
+    </div>
+    <div class="fg form-full">
+      <label>Devices (description + MAC) *</label>
+      <div id="device-rows"></div>
+      <span class="add-device-btn" onclick="addDeviceRow()">+ Add another device</span>
+      <div class="err" id="e-mac"></div>
+    </div>
+    <div class="fg">
+      <label>Subscription start date</label>
+      <input type="date" id="f-start" oninput="updateExpiry()">
+    </div>
+    <div class="fg">
+      <label>Expires (auto, 30 days)</label>
+      <input type="text" id="f-end" disabled style="opacity:.65">
+    </div>
+    <div class="fg" id="paystatus-wrap">
+      <label>Month's payment status</label>
+      <select id="f-status">
+        <option value="pending">Pending</option>
+        <option value="paid">Fully paid</option>
+        <option value="partial">Partial / down payment</option>
+        <option value="overdue">Overdue</option>
+      </select>
+    </div>
+    <div class="fg form-full" id="downpay-wrap" style="display:none">
+      <label>Amount paid so far (KES)</label>
+      <input type="number" id="f-downpay" placeholder="e.g. 1500" min="0">
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('client-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveClient()">Save client</button>
+  </div>
+</div>
+</div>
+
+<!-- Payment / Month modal -->
+<div class="modal-overlay" id="pay-modal">
+<div class="modal" style="max-width:420px">
+  <div class="modal-title" id="pay-modal-title">Record payment</div>
+  <div id="pay-modal-body"></div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal('pay-modal')">Done</button>
+  </div>
+</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STORAGE — Google Sheets via Apps Script + localStorage cache
+// ═══════════════════════════════════════════════════════════
+const LS_KEY      = 'nettrack_v3';
+const LS_SETTINGS = 'nettrack_settings';
+const LS_SIDEBAR  = 'nettrack_sidebar_collapsed';
+
+let db       = { clients: [], payments: {} };
+// payments structure: { clientId: { 'YYYY-MM': { status, paid, due, promiseDate } } }
+// status: 'pending' | 'paid' | 'partial' | 'overdue'
+// paid: amount actually received
+// due: full monthly fee (copied at time of payment)
+// promiseDate: 'YYYY-MM-DD' — the date a client promised to pay by, when
+// given credit/connection on trust. Used to flag "broken promises" once
+// that date passes without the balance being cleared.
+
+let settings = { url: '', token: '' };
+let editId   = null;
+let payId    = null;
+let filterSt = 'all';
+let searchQ  = '';
+let saving   = false;
+
+// ── Boot ─────────────────────────────────────────────────────
+(function init() {
+  const lsS = localStorage.getItem(LS_SETTINGS);
+  if (lsS) { try { settings = JSON.parse(lsS); } catch(e){} }
+  const lsD = localStorage.getItem(LS_KEY);
+  if (lsD) { try { db = JSON.parse(lsD); } catch(e){} }
+
+  // Restore collapsed/expanded sidebar preference — saves a click on every
+  // visit instead of defaulting back to expanded each time.
+  if (localStorage.getItem(LS_SIDEBAR) === '1') {
+    document.getElementById('sidebar').classList.add('collapsed');
+    document.getElementById('sidebar-toggle').title = 'Expand sidebar';
+  }
+
+  if (settings.url && settings.token) {
+    syncFromSheet();
+  } else {
+    setSyncBadge('warn', 'No sheet connected');
+    notifyBrokenPromises();
+  }
+  showView('clients');
+})();
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const collapsed = sb.classList.toggle('collapsed');
+  localStorage.setItem(LS_SIDEBAR, collapsed ? '1' : '0');
+  document.getElementById('sidebar-toggle').title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  // Sidebar width changes on a CSS transition, not a DOM mutation, so the
+  // floating scrollbar's left offset needs a manual recheck — once now
+  // and once after the transition finishes.
+  setupFloatingScrollbar();
+  setTimeout(setupFloatingScrollbar, 180);
+}
+
+// ── Floating scrollbar ───────────────────────────────────────
+// A table with many rows pushes its own horizontal scrollbar far below
+// the fold, so reaching it means scrolling all the way down first. This
+// mirrors it as a thin bar pinned to the bottom of the viewport instead,
+// positioned over whichever .table-wrap is currently rendered.
+function setupFloatingScrollbar() {
+  const wrap  = document.querySelector('.table-wrap');
+  const bar   = document.getElementById('floating-scrollbar');
+  const inner = document.getElementById('floating-scrollbar-inner');
+  if (!wrap || !bar || !inner) { bar?.classList.remove('show'); return; }
+  const needsScroll = wrap.scrollWidth > wrap.clientWidth + 1;
+  if (!needsScroll) { bar.classList.remove('show'); return; }
+  const rect = wrap.getBoundingClientRect();
+  inner.style.width = wrap.scrollWidth + 'px';
+  bar.style.left    = rect.left + 'px';
+  bar.style.width   = rect.width + 'px';
+  bar.scrollLeft    = wrap.scrollLeft;
+  bar.classList.add('show');
+}
+
+// Scroll events don't bubble, but they do reach ancestor listeners
+// registered with capture:true during the capture phase — this catches
+// scrolling on whichever .table-wrap is on screen without needing to
+// rewire it every time a view re-renders its table from scratch.
+document.addEventListener('scroll', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('table-wrap')) {
+    const bar = document.getElementById('floating-scrollbar');
+    if (bar && bar.classList.contains('show')) bar.scrollLeft = e.target.scrollLeft;
+  }
+}, true);
+
+document.getElementById('floating-scrollbar').addEventListener('scroll', function() {
+  const wrap = document.querySelector('.table-wrap');
+  if (wrap) wrap.scrollLeft = this.scrollLeft;
+});
+
+// The table is rebuilt from scratch on every render (innerHTML swap), so
+// watch #main for changes instead of hooking every render function.
+new MutationObserver(setupFloatingScrollbar)
+  .observe(document.getElementById('main'), { childList: true, subtree: true });
+window.addEventListener('resize', setupFloatingScrollbar);
+
+
+// ── Sync ─────────────────────────────────────────────────────
+async function syncFromSheet() {
+  if (!settings.url || !settings.token) {
+    setSyncBadge('warn', 'No sheet connected — go to Settings');
+    return;
+  }
+  setSyncBadge('warn', 'Loading…');
+  try {
+    // GET with token as query param — no custom headers, fully CORS-safe
+    const res  = await fetch(
+      settings.url + '?token=' + encodeURIComponent(settings.token),
+      { method: 'GET' }
+    );
+    const text = await res.text();
+    const json = JSON.parse(text);
+    if (json.error) throw new Error(json.error);
+    db = { clients: json.clients || [], payments: json.payments || {} };
+    localStorage.setItem(LS_KEY, JSON.stringify(db));
+    const t = new Date().toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+    setSyncBadge('ok', 'Synced · ' + t);
+    renderCurrent();
+    notifyBrokenPromises();
+  } catch(e) {
+    setSyncBadge('err', 'Sync failed — using cached data');
+    console.error('syncFromSheet error:', e);
+  }
+}
+
+// Surfaces broken promises the moment the app opens/syncs, so you don't
+// have to remember to go looking for them.
+function notifyBrokenPromises() {
+  const broken = getBrokenPromiseClients();
+  if (broken.length === 0) return;
+  const names = broken.map(c => c.contact || 'House '+c.house).join(', ');
+  toast(`⚠ ${broken.length} client${broken.length!==1?'s':''} missed their promised pay date: ${names}`, true);
+}
+
+async function pushToSheet() {
+  // Always save locally first — instant, never fails
+  localStorage.setItem(LS_KEY, JSON.stringify(db));
+
+  if (!settings.url || !settings.token) return;
+
+  saving = true;
+  setSyncBadge('warn', 'Saving to sheet…');
+  try {
+    // KEY FIX: Send data as FormData with no custom Content-Type header.
+    // Browsers treat FormData as a "simple request" — no CORS preflight,
+    // no blocked headers. Apps Script receives it via e.parameter.data
+    const form = new FormData();
+    form.append('token', settings.token);
+    form.append('data',  JSON.stringify(db));
+
+    const res = await fetch(settings.url, {
+      method: 'POST',
+      body:   form
+      // NO headers:{} here — letting browser set multipart boundary automatically
+    });
+    const text = await res.text();
+    const json = JSON.parse(text);
+    if (!json.ok) throw new Error(json.error || 'Sheet returned error');
+    const t = new Date().toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+    setSyncBadge('ok', 'Saved to sheet · ' + t);
+  } catch(e) {
+    setSyncBadge('err', 'Sheet save failed — data safe locally');
+    console.error('pushToSheet error:', e);
+  }
+  saving = false;
+}
+
+function setSyncBadge(type, msg) {
+  const el = document.getElementById('sync-badge');
+  el.className = 'sync-badge s-' + type;
+  document.getElementById('sync-text').textContent = msg;
+}
+
+// ── Utilities ─────────────────────────────────────────────────
+function toast(msg, isErr=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr?' err':'');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function currentMonth() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+
+function todayISO() { return new Date().toISOString().split('T')[0]; }
+
+function addDays(iso, days) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return '';
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('en-KE', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function isExpired(iso) {
+  if (!iso) return false;
+  return new Date(iso+'T00:00:00') < new Date(todayISO()+'T00:00:00');
+}
+
+function isExpiringSoon(iso) {
+  if (!iso) return false;
+  const days = (new Date(iso+'T00:00:00') - new Date(todayISO()+'T00:00:00')) / 86400000;
+  return days >= 0 && days <= 5;
+}
+
+function updateExpiry() {
+  const start = document.getElementById('f-start')?.value;
+  const endInp = document.getElementById('f-end');
+  if (!endInp) return;
+  endInp.value = start ? fmtDate(addDays(start, 30)) : '';
+}
+
+function fmtMonth(ym) {
+  if (!ym) return '—';
+  const [y,m] = ym.split('-');
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1] + ' ' + y;
+}
+
+function fmtKES(n) { return 'KES ' + Number(n||0).toLocaleString('en-KE'); }
+
+// ── CLIENT ACTIVE / DEACTIVATED ────────────────────────────────
+// Deactivated clients (away, not paying for a while) stay on file with their
+// history, but are left out of client totals, billing and expected revenue.
+function isActive(c){ return (c.status||'active') !== 'deactivated'; }
+function activeClients(){ return db.clients.filter(isActive); }
+function onClientStatusChange(){
+  const off = document.getElementById('f-clientstatus').value==='deactivated';
+  document.getElementById('paystatus-wrap').style.display = off ? 'none' : '';
+  if (off) document.getElementById('downpay-wrap').style.display='none';
+  else document.getElementById('downpay-wrap').style.display = document.getElementById('f-status').value==='partial'?'block':'none';
+}
+
+function getPayRec(clientId, month) {
+  const p = db.payments[clientId];
+  return (p && p[month]) || { status: 'pending', paid: 0, due: 0, promiseDate: '' };
+}
+
+function getStatus(clientId) {
+  return getPayRec(clientId, currentMonth()).status;
+}
+
+// A "broken promise" = client gave a pay-by date, it has passed, and
+// they still haven't fully paid. This is the fraud/forgetfulness signal.
+function isPromiseBroken(rec) {
+  return !!(rec.promiseDate && rec.status !== 'paid' && rec.promiseDate < todayISO());
+}
+function isPromiseDueToday(rec) {
+  return !!(rec.promiseDate && rec.status !== 'paid' && rec.promiseDate === todayISO());
+}
+function getBrokenPromiseClients() {
+  const cm = currentMonth();
+  return activeClients().filter(c => isPromiseBroken(getPayRec(c.id, cm)));
+}
+
+function pillHtml(st) {
+  const m = { paid:['pill-paid','Paid'], partial:['pill-partial','Partial'], overdue:['pill-overdue','Overdue'], pending:['pill-pending','Pending'] };
+  const [cls,lbl] = m[st]||m.pending;
+  return `<span class="pill ${cls}">${lbl}</span>`;
+}
+
+// Small subtext shown under the status pill when a client is on credit
+function promiseSubtext(rec) {
+  if (!rec.promiseDate || rec.status==='paid') return '';
+  if (isPromiseBroken(rec)) {
+    return `<div style="font-size:10px;color:var(--red);margin-top:3px;white-space:nowrap">⚠ Broke promise · was due ${fmtDate(rec.promiseDate)}</div>`;
+  }
+  if (isPromiseDueToday(rec)) {
+    return `<div style="font-size:10px;color:var(--amber);margin-top:3px;white-space:nowrap">⏰ Due today</div>`;
+  }
+  return `<div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap">🤝 Promised ${fmtDate(rec.promiseDate)}</div>`;
+}
+
+function renderCurrent() {
+  const views = ['clients','revenue','history','export','settings'];
+  const active = views.find(v => document.getElementById('nav-'+v)?.classList.contains('active')) || 'clients';
+  if (active==='clients') renderClients();
+  else if (active==='revenue') renderRevenue();
+  else if (active==='history') renderHistory();
+  else if (active==='export') renderExport();
+  else if (active==='settings') renderSettings();
+}
+
+// ── Views ──────────────────────────────────────────────────────
+function showView(v) {
+  ['clients','revenue','history','export','settings'].forEach(x => {
+    document.getElementById('nav-'+x)?.classList.toggle('active', x===v);
+  });
+  if (v==='clients') renderClients();
+  else if (v==='revenue') renderRevenue();
+  else if (v==='history') renderHistory();
+  else if (v==='export') renderExport();
+  else if (v==='settings') renderSettings();
+}
+
+function renderSidebar() {
+  const cm   = currentMonth();
+  const act = activeClients();
+  const paid = act.filter(c => getStatus(c.id)==='paid').length;
+  const owed = act.filter(c => ['pending','overdue','partial'].includes(getStatus(c.id))).length;
+  const rev  = act.reduce((s,c)=>s+Number(c.fee||0),0);
+  const collected = act.reduce((s,c) => {
+    const r = getPayRec(c.id, cm);
+    return s + Number(r.paid||0);
+  }, 0);
+  const broken = getBrokenPromiseClients().length;
+  const totalDevices = act.reduce((s,c)=>s+(c.devices||[]).filter(d=>d.mac&&d.mac.trim()).length,0);
+  document.getElementById('sidebar-footer').innerHTML = `
+    <div class="ss-row"><span>Clients</span><span>${act.length}</span></div>
+    <div class="ss-row"><span>Devices</span><span>${totalDevices}</span></div>
+    <div class="ss-row"><span>Paid</span><span class="green">${paid}</span></div>
+    <div class="ss-row"><span>Outstanding</span><span class="${owed>0?'red':''}">${owed}</span></div>
+    ${broken>0?`<div class="ss-row"><span>⚠ Broken promises</span><span class="red">${broken}</span></div>`:''}
+    <div class="ss-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><span>Expected</span><span>KES ${rev.toLocaleString('en-KE')}</span></div>
+    <div class="ss-row"><span>Collected</span><span class="green">KES ${collected.toLocaleString('en-KE')}</span></div>
+  `;
+}
+
+// ── CLIENTS VIEW ───────────────────────────────────────────────
+function renderClients() {
+  const cm    = currentMonth();
+  const act = activeClients();
+  const inactiveN = db.clients.length - act.length;
+  const total = act.length;
+  const paid  = act.filter(c=>getStatus(c.id)==='paid').length;
+  const ov    = act.filter(c=>getStatus(c.id)==='overdue').length;
+  const part  = act.filter(c=>getStatus(c.id)==='partial').length;
+  const pend  = act.filter(c=>getStatus(c.id)==='pending').length;
+  const expectedRev = act.reduce((s,c)=>s+Number(c.fee||0),0);
+  const collectedRev = act.reduce((s,c)=>{
+    const r=getPayRec(c.id,cm); return s+Number(r.paid||0);
+  },0);
+  const pendingRev = expectedRev - collectedRev;
+  const pct = expectedRev > 0 ? Math.round(collectedRev/expectedRev*100) : 0;
+  const broken = getBrokenPromiseClients();
+  // Total devices = count of MAC addresses on record across all clients
+  const totalDevices = act.reduce((s,c)=>s+(c.devices||[]).filter(d=>d.mac&&d.mac.trim()).length,0);
+  const clientsNoDevices = act.filter(c=>!(c.devices||[]).some(d=>d.mac&&d.mac.trim())).length;
+
+  let list = db.clients.filter(c => {
+    const okSt = filterSt==='all' ? true
+      : filterSt==='deactivated' ? !isActive(c)
+      : !isActive(c) ? false
+      : filterSt==='broken' ? isPromiseBroken(getPayRec(c.id,cm))
+      : getStatus(c.id)===filterSt;
+    const q    = searchQ.toLowerCase();
+    const macs = (c.devices||[]).map(d=>d.mac||'').join(' ');
+    const devs = (c.devices||[]).map(d=>d.device||'').join(' ');
+    const okQ  = !q||[c.house,c.contact,c.phone,macs,devs].some(v=>(v||'').toLowerCase().includes(q));
+    return okSt && okQ;
+  }).sort((a,b)=>{
+    if (isActive(a)!==isActive(b)) return isActive(a) ? -1 : 1; // deactivated go last
+    const bA = isPromiseBroken(getPayRec(a.id,cm)) ? 0 : 1;
+    const bB = isPromiseBroken(getPayRec(b.id,cm)) ? 0 : 1;
+    if (bA !== bB) return bA - bB;
+    const o={overdue:0,pending:1,partial:2,paid:3};
+    return o[getStatus(a.id)]-o[getStatus(b.id)];
+  });
+
+  document.getElementById('main').innerHTML = `
+  <div class="page-header">
+    <div>
+      <div class="page-title">Clients</div>
+      <div class="page-sub">${fmtMonth(cm)} · ${total} active${inactiveN?` · ${inactiveN} deactivated`:''}</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="syncFromSheet()">⟳ Sync</button>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Add client</button>
+    </div>
+  </div>
+
+  ${broken.length>0 ? `
+  <div style="background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--r);padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:16px">⚠️</span>
+    <div style="flex:1;min-width:200px">
+      <strong style="color:var(--red)">${broken.length} broken promise${broken.length!==1?'s':''}</strong>
+      <span style="color:var(--muted)"> — ${broken.map(c=>`${c.contact||'House '+c.house} (was due ${fmtDate(getPayRec(c.id,cm).promiseDate)})`).join(', ')}</span>
+    </div>
+    <button class="filter-btn ${filterSt==='broken'?'active':''}" style="border-color:var(--red);color:var(--red)" onclick="filterSt='broken';renderClients()">Show only these</button>
+  </div>` : ''}
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-label">Revenue collected</div>
+      <div class="kpi-val green">KES ${collectedRev.toLocaleString('en-KE')}</div>
+      <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
+      <div class="kpi-sub">${pct}% of KES ${expectedRev.toLocaleString('en-KE')} expected</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Pending / outstanding</div>
+      <div class="kpi-val ${pendingRev>0?'amber':'green'}">KES ${pendingRev.toLocaleString('en-KE')}</div>
+      <div class="kpi-sub">${ov+pend+part} client${ov+pend+part!==1?'s':''} yet to fully pay</div>
+    </div>
+    <div class="kpi"><div class="kpi-label">Fully paid</div><div class="kpi-val green">${paid}</div><div class="kpi-sub">of ${total} clients</div></div>
+    <div class="kpi"><div class="kpi-label">Partial payments</div><div class="kpi-val purple">${part}</div><div class="kpi-sub">down payment received</div></div>
+    <div class="kpi"><div class="kpi-label">Overdue</div><div class="kpi-val ${ov>0?'red':''}">${ov}</div><div class="kpi-sub">no payment at all</div></div>
+    <div class="kpi"><div class="kpi-label">Pending</div><div class="kpi-val ${pend>0?'amber':''}">${pend}</div><div class="kpi-sub">not yet recorded</div></div>
+    <div class="kpi"><div class="kpi-label">Broken promises</div><div class="kpi-val ${broken.length>0?'red':''}">${broken.length}</div><div class="kpi-sub">missed their pay-by date</div></div>
+    <div class="kpi"><div class="kpi-label">Total devices</div><div class="kpi-val">${totalDevices}</div><div class="kpi-sub">${clientsNoDevices>0?`${clientsNoDevices} client${clientsNoDevices!==1?'s':''} with no MAC on file`:'across all clients'}</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" placeholder="Search house, name, MAC, device…" value="${searchQ}" oninput="searchQ=this.value;renderClients()">
+    ${['all','paid','partial','pending','overdue','broken','deactivated'].map(s=>`
+      <button class="filter-btn ${filterSt===s?'active':''}" onclick="filterSt='${s}';renderClients()">
+        ${s==='broken'?'⚠️ Broken promise':s.charAt(0).toUpperCase()+s.slice(1)}
+      </button>`).join('')}
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>House</th><th>Client</th><th>Phone</th>
+        <th>Devices / MAC</th><th>Monthly fee</th>
+        <th>Collected</th><th>Balance due</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${list.length===0 ? `<tr><td colspan="9">
+        <div class="empty">
+          <div class="empty-icon">📡</div>
+          <div class="empty-title">${total===0?'No clients yet':'No results'}</div>
+          <div>${total===0?'Add your first WiFi client to start tracking.':'Try a different search or filter.'}</div>
+        </div>
+      </td></tr>` : list.map(c => {
+        const st  = getStatus(c.id);
+        const rec = getPayRec(c.id, cm);
+        const fee = Number(c.fee||0);
+        const paid_amt = Number(rec.paid||0);
+        const balance  = fee - paid_amt;
+        const devCount = (c.devices||[]).filter(d=>d.mac&&d.mac.trim()).length;
+        const devLines = (c.devices||[]).map(d=>`<div>${d.device||'—'} <span class="mac-cell">${d.mac||''}</span></div>`).join('');
+        const off = !isActive(c);
+        return `<tr${off?' style="opacity:.55"':''}>
+          <td><span class="house-badge">${c.house}</span></td>
+          <td class="name-cell">${c.contact||'—'}${c.end?`<div style="font-size:11px;font-weight:400;color:${isExpired(c.end)?'var(--red)':isExpiringSoon(c.end)?'var(--amber)':'var(--muted)'}">${isExpired(c.end)?'Expired':'Exp'} ${fmtDate(c.end)}</div>`:''}</td>
+          <td style="color:var(--muted)">${c.phone||'—'}</td>
+          <td style="line-height:1.8">${devCount>0?`<div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px">${devCount} device${devCount!==1?'s':''}</div>`:''}${devLines||'—'}</td>
+          <td style="font-weight:500">${fmtKES(c.fee)}</td>
+          <td class="green" style="font-weight:500">${paid_amt>0?fmtKES(paid_amt):'—'}</td>
+          <td style="color:${off?'var(--muted)':balance>0?'var(--amber)':'var(--green)'};font-weight:500">${off?'—':balance>0?fmtKES(balance):'✓ Clear'}</td>
+          <td>${off?'<span class="pill pill-pending" style="background:var(--faint);color:var(--muted)">Deactivated</span>':pillHtml(st)+promiseSubtext(rec)}</td>
+          <td><div class="row-actions">
+            <button class="btn btn-sm btn-green" onclick="openPayModal('${c.id}')" title="Record payment">💰 Pay</button>
+            <button class="btn btn-sm btn-ghost" onclick="openEditModal('${c.id}')" title="Edit">✎</button>
+            <button class="btn btn-sm btn-danger btn-ghost" onclick="deleteClient('${c.id}')" title="Delete">✕</button>
+          </div></td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+  renderSidebar();
+}
+
+// ── REVENUE VIEW ───────────────────────────────────────────────
+function renderRevenue() {
+  const cm = currentMonth();
+  const months = getLast12Months();
+
+  // Build monthly revenue summary
+  const summary = months.map(m => {
+    const expected  = db.clients.reduce((s,c)=>s+expectedFor(c,m),0);
+    const collected = db.clients.reduce((s,c)=>{
+      const r=getPayRec(c.id,m); return s+Number(r.paid||0);
+    },0);
+    const partial = db.clients.filter(c=>getPayRec(c.id,m).status==='partial').length;
+    const fullyPaid = db.clients.filter(c=>getPayRec(c.id,m).status==='paid').length;
+    return { month:m, expected, collected, pending: expected-collected, partial, fullyPaid };
+  });
+
+  const thisMo    = summary[summary.length-1];
+  const totalYTD  = summary.reduce((s,m)=>s+m.collected,0);
+  const totalExpYTD = summary.reduce((s,m)=>s+m.expected,0);
+
+  document.getElementById('main').innerHTML = `
+  <div class="page-header">
+    <div class="page-title">Revenue</div>
+    <div class="page-sub">Collected vs expected · last 12 months</div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-label">This month — collected</div>
+      <div class="kpi-val green">KES ${thisMo.collected.toLocaleString('en-KE')}</div>
+      <div class="kpi-sub">of KES ${thisMo.expected.toLocaleString('en-KE')} expected</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">This month — pending</div>
+      <div class="kpi-val ${thisMo.pending>0?'amber':'green'}">KES ${thisMo.pending.toLocaleString('en-KE')}</div>
+      <div class="kpi-sub">${Math.round(thisMo.pending/Math.max(thisMo.expected,1)*100)}% still outstanding</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">12-month collected</div>
+      <div class="kpi-val">KES ${totalYTD.toLocaleString('en-KE')}</div>
+      <div class="kpi-sub">of KES ${totalExpYTD.toLocaleString('en-KE')} expected YTD</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Collection rate (12mo avg)</div>
+      <div class="kpi-val">${Math.round(totalYTD/Math.max(totalExpYTD,1)*100)}%</div>
+      <div class="kpi-sub">higher = better payment discipline</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Month</th><th>Expected</th><th>Collected</th><th>Pending</th><th>Collection %</th><th>Fully paid</th><th>Partial</th>
+      </tr></thead>
+      <tbody>
+      ${[...summary].reverse().map(m=>{
+        const pct=Math.round(m.collected/Math.max(m.expected,1)*100);
+        return `<tr>
+          <td style="font-weight:500">${fmtMonth(m.month)}</td>
+          <td>KES ${m.expected.toLocaleString('en-KE')}</td>
+          <td class="green" style="font-weight:500">KES ${m.collected.toLocaleString('en-KE')}</td>
+          <td style="color:${m.pending>0?'var(--amber)':'var(--muted)'}">KES ${m.pending.toLocaleString('en-KE')}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="progress-wrap" style="flex:1;margin:0"><div class="progress-bar" style="width:${pct}%;background:${pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)'}"></div></div>
+              <span style="font-size:12px;color:${pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)'}">${pct}%</span>
+            </div>
+          </td>
+          <td style="color:var(--green)">${m.fullyPaid}</td>
+          <td style="color:var(--purple)">${m.partial}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:20px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:12px">Per-client breakdown — ${fmtMonth(cm)}</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>House</th><th>Client</th><th>Fee</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+        <tbody>
+          ${activeClients().sort((a,b)=>{
+            const o={overdue:0,pending:1,partial:2,paid:3};
+            return o[getStatus(a.id)]-o[getStatus(b.id)];
+          }).map(c=>{
+            const rec=getPayRec(c.id,cm);
+            const fee=Number(c.fee||0);
+            const paidAmt=Number(rec.paid||0);
+            const bal=fee-paidAmt;
+            return `<tr>
+              <td><span class="house-badge">${c.house}</span></td>
+              <td class="name-cell">${c.contact||'—'}</td>
+              <td>KES ${fee.toLocaleString('en-KE')}</td>
+              <td class="green" style="font-weight:500">${paidAmt>0?'KES '+paidAmt.toLocaleString('en-KE'):'—'}</td>
+              <td style="color:${bal>0?'var(--amber)':'var(--green)'}">${bal>0?'KES '+bal.toLocaleString('en-KE'):'✓ Clear'}</td>
+              <td>${pillHtml(getStatus(c.id))}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+  renderSidebar();
+}
+
+// ── HISTORY VIEW ───────────────────────────────────────────────
+function shortKES(n){ n=Number(n||0); return n>=1000 ? (n/1000).toFixed(n%1000?1:0).replace(/\.0$/,'')+'k' : String(n); }
+function renderHistory() {
+  const months = getLast12Months();
+  document.getElementById('main').innerHTML = `
+  <div class="page-header">
+    <div class="page-title">Payment history</div>
+    <div class="page-sub">Amount each client paid per month · bar height = share of that month's fee · tap a bar to change status · 💰 to record a payment</div>
+  </div>
+  <div class="hist-legend">
+    <span><i class="lg paid"></i>Paid</span><span><i class="lg partial"></i>Partial</span>
+    <span><i class="lg overdue"></i>Overdue</span><span><i class="lg pending"></i>Pending</span><span><i class="lg na"></i>Not yet a client</span>
+  </div>
+  <div class="history-grid">
+    ${db.clients.length===0?'<div class="empty"><div class="empty-icon">◷</div><div class="empty-title">No clients yet</div></div>':
+    db.clients.map(c=>{
+      const first = clientFirstMonth(c);
+      const active = months.filter(m=>m>=first);
+      const totalPaid12 = months.reduce((s,m)=>s+Number(getPayRec(c.id,m).paid||0),0);
+      const billed12 = active.reduce((s,m)=>s+expectedFor(c,m),0);
+      const paidMonths = active.filter(m=>getPayRec(c.id,m).status==='paid').length;
+      const avg = active.length ? Math.round(totalPaid12/active.length) : 0;
+      return `<div class="h-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="house-badge">${c.house}</span>
+            <div>
+              <div style="font-weight:500;font-size:13px">${c.contact||'—'}${isActive(c)?'':' <span style="font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 5px">Deactivated</span>'}</div>
+              <div style="font-size:11px;color:var(--muted)">${fmtKES(c.fee)}/mo</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-green" onclick="openPayModal('${c.id}')">💰</button>
+        </div>
+        <div class="hb-stats">
+          <div><b>${fmtKES(totalPaid12)}</b><span>paid · 12 mo</span></div>
+          <div><b>${paidMonths}/${active.length}</b><span>months fully paid</span></div>
+          <div><b>${fmtKES(avg)}</b><span>avg / month</span></div>
+        </div>
+        <div class="hb-row">
+          ${months.map(m=>{
+            if (m<first) return `<div class="hb na" title="${fmtMonth(m)} — not yet a client"><div class="hb-amt">·</div><div class="hb-track"></div><div class="hb-m">${fmtMonth(m).slice(0,3)}</div></div>`;
+            const rec=getPayRec(c.id,m);
+            const st=rec.status||'pending';
+            const paidAmt=Number(rec.paid||0);
+            const exp=expectedFor(c,m)||1;
+            const pct=Math.min(100,Math.round(paidAmt/exp*100));
+            const h=paidAmt>0?Math.max(pct,6):0;
+            const tip=`${fmtMonth(m)} — paid ${fmtKES(paidAmt)} of ${fmtKES(exp)} (${st})`;
+            return `<div class="hb" onclick="quickToggleHist('${c.id}','${m}')" title="${tip}"><div class="hb-amt">${paidAmt>0?shortKES(paidAmt):'0'}</div><div class="hb-track"><div class="hb-fill ${st}" style="height:${h}%"></div></div><div class="hb-m">${fmtMonth(m).slice(0,3)}</div></div>`;
+          }).join('')}
+        </div>
+        ${billed12>totalPaid12?`<div style="font-size:11px;color:var(--amber);margin-top:8px">Unpaid over period: ${fmtKES(billed12-totalPaid12)}</div>`:`<div style="font-size:11px;color:var(--green);margin-top:8px">✓ Fully settled for the period</div>`}
+      </div>`;
+    }).join('')}
+  </div>`;
+  renderSidebar();
+}
+
+// ── TRUE EXPECTED REVENUE ──────────────────────────────────────
+// A client's first month = the earlier of their subscription start month and
+// their earliest payment record. Expected for a month is what that client was
+// actually billed that month (the 'due' stored on the payment record at the
+// time), or — if nothing was recorded — their fee, but only from the month
+// they joined. So adding or editing a client today no longer rewrites
+// the expected figure of past months.
+function clientFirstMonth(c) {
+  const recMonths = Object.keys(db.payments[c.id] || {}).sort();
+  const startM = c.start ? String(c.start).substring(0,7) : '';
+  const cands = [startM, recMonths[0]].filter(Boolean).sort();
+  return cands[0] || currentMonth();
+}
+function expectedFor(c, m) {
+  if (m < clientFirstMonth(c)) return 0;
+  if (!isActive(c) && m >= currentMonth()) return 0; // deactivated: not billed from this month on
+  const rec = (db.payments[c.id] || {})[m];
+  if (rec && Number(rec.due) > 0) return Number(rec.due);
+  return Number(c.fee || 0);
+}
+
+function getLast12Months() {
+  const now=new Date(), months=[];
+  for(let i=11;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+  }
+  return months;
+}
+
+function quickToggleHist(cid,m){
+  if(!db.payments[cid])db.payments[cid]={};
+  const rec=db.payments[cid][m]||{status:'pending',paid:0,due:0};
+  const cycle={pending:'paid',paid:'overdue',overdue:'partial',partial:'pending'};
+  const newSt=cycle[rec.status||'pending'];
+  const c=db.clients.find(x=>x.id===cid);
+  const fee=Number(c?.fee||0);
+  db.payments[cid][m]={
+    status:newSt,
+    paid: newSt==='paid'?fee : newSt==='partial'?Math.round(fee/2) : newSt==='pending'?0 : rec.paid||0,
+    due: fee,
+    promiseDate: rec.promiseDate||''
+  };
+  pushToSheet();
+  renderHistory();
+}
+
+// ── PAY MODAL ──────────────────────────────────────────────────
+function openPayModal(id) {
+  payId = id;
+  const c   = db.clients.find(x=>x.id===id);
+  const cm  = currentMonth();
+  const rec = getPayRec(id, cm);
+  const fee = Number(c.fee||0);
+  document.getElementById('pay-modal-title').textContent = `Record payment — ${c.contact||'House '+c.house}`;
+  renderPayModal(c, cm, rec, fee);
+  document.getElementById('pay-modal').classList.add('open');
+}
+
+function renderPayModal(c, cm, rec, fee) {
+  const months = getLast12Months();
+  document.getElementById('pay-modal-body').innerHTML = `
+    <div class="downpay-form">
+      <div class="downpay-title">📅 ${fmtMonth(cm)} — Fee: ${fmtKES(fee)}</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Amount received (KES)</label>
+        <input type="number" id="pay-amount" value="${Number(rec.paid||0)||''}" placeholder="${fee}" min="0" max="${fee}"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:14px;color:var(--text);font-family:var(--sans);outline:none"
+          oninput="updatePayStatus(${fee})">
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+        <button class="btn btn-sm" onclick="setPayAmt(0,${fee})">KES 0</button>
+        <button class="btn btn-sm" onclick="setPayAmt(${Math.round(fee/2)},${fee})">Half (${fmtKES(Math.round(fee/2))})</button>
+        <button class="btn btn-sm btn-green" onclick="setPayAmt(${fee},${fee})">Full (${fmtKES(fee)})</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted)" id="pay-status-preview">
+        ${getPayStatusPreview(Number(rec.paid||0), fee)}
+      </div>
+      <div style="margin-top:12px" id="promise-wrap">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">🤝 Promised to pay by (on credit)</label>
+        <input type="date" id="pay-promise" value="${rec.promiseDate||''}"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:14px;color:var(--text);font-family:var(--sans);outline:none">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave blank if not on credit. If this date passes unpaid, they'll be flagged as a broken promise.</div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center" onclick="savePayment('${c.id}','${cm}',${fee})">
+        Save payment for ${fmtMonth(cm)}
+      </button>
+    </div>
+
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:500">PAYMENT HISTORY — last 12 months</div>
+    <div class="month-chip-grid">
+      ${months.map(m=>{
+        const r=getPayRec(c.id,m);
+        const st=r.status||'pending';
+        const paidAmt=Number(r.paid||0);
+        return `<button class="m-chip sel-${st}" onclick="quickTogglePayChip('${c.id}','${m}',${fee})">
+          ${fmtMonth(m).replace(' 20'," '")}<br>
+          <span style="font-size:10px">${paidAmt>0?'KES '+paidAmt.toLocaleString('en-KE'):st}</span>
+        </button>`;
+      }).join('')}
+    </div>`;
+}
+
+function getPayStatusPreview(paid, fee) {
+  if (paid<=0)   return 'Status will be set to <strong style="color:var(--amber)">Pending</strong>';
+  if (paid>=fee) return 'Status will be set to <strong style="color:var(--green)">Fully Paid ✓</strong>';
+  const bal = fee-paid;
+  return `Status: <strong style="color:var(--purple)">Partial payment</strong> · Balance due: <strong>${fmtKES(bal)}</strong>`;
+}
+
+function setPayAmt(amt, fee) {
+  document.getElementById('pay-amount').value = amt;
+  updatePayStatus(fee);
+}
+
+function updatePayStatus(fee) {
+  const amt = Number(document.getElementById('pay-amount')?.value||0);
+  const el  = document.getElementById('pay-status-preview');
+  if (el) el.innerHTML = getPayStatusPreview(amt, fee);
+}
+
+function savePayment(clientId, month, fee) {
+  const amt = Number(document.getElementById('pay-amount').value||0);
+  const promiseDate = document.getElementById('pay-promise')?.value || '';
+  let status = 'pending';
+  if (amt >= fee)  status = 'paid';
+  else if (amt > 0) status = 'partial';
+
+  if (!db.payments[clientId]) db.payments[clientId] = {};
+  // Paying in full clears any outstanding promise automatically.
+  db.payments[clientId][month] = { status, paid: amt, due: fee, promiseDate: status==='paid' ? '' : promiseDate };
+  pushToSheet();
+  toast(`Payment recorded — ${fmtKES(amt)} · ${status}`);
+  closeModal('pay-modal');
+  renderCurrent();
+}
+
+function quickTogglePayChip(clientId, month, fee) {
+  const rec = getPayRec(clientId, month);
+  const cycle = {pending:'paid',paid:'overdue',overdue:'partial',partial:'pending'};
+  const newSt = cycle[rec.status||'pending'];
+  if (!db.payments[clientId]) db.payments[clientId] = {};
+  db.payments[clientId][month] = {
+    status: newSt,
+    paid: newSt==='paid'?fee : newSt==='partial'?Math.round(fee/2) : 0,
+    due: fee,
+    promiseDate: newSt==='paid' ? '' : (rec.promiseDate||'')
+  };
+  pushToSheet();
+  const c = db.clients.find(x=>x.id===clientId);
+  const cm = currentMonth();
+  const rec2 = getPayRec(clientId, cm);
+  renderPayModal(c, cm, rec2, fee);
+}
+
+// ── DEVICE ROWS ────────────────────────────────────────────────
+function addDeviceRow(device='', mac='') {
+  const wrap = document.getElementById('device-rows');
+  const div  = document.createElement('div');
+  div.className = 'device-row';
+  div.innerHTML = `
+    <input type="text" placeholder="Device description (e.g. TP-Link C6)" value="${device}" class="dev-desc">
+    <input type="text" placeholder="MAC: AA:BB:CC:DD:EE:FF" value="${mac}" class="dev-mac mac-inp" maxlength="17">
+    <button class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" style="padding:6px 8px">✕</button>`;
+  wrap.appendChild(div);
+}
+
+function collectDevices() {
+  const rows = document.querySelectorAll('#device-rows .device-row');
+  return Array.from(rows).map(r => ({
+    device: r.querySelector('.dev-desc').value.trim(),
+    mac:    r.querySelector('.dev-mac').value.trim().toUpperCase()
+  })).filter(d => d.device || d.mac);
+}
+
+// ── ADD/EDIT MODAL ─────────────────────────────────────────────
+document.addEventListener('change', e => {
+  if (e.target.id === 'f-status') {
+    document.getElementById('downpay-wrap').style.display =
+      e.target.value === 'partial' ? 'block' : 'none';
+  }
+});
+
+function openAddModal() {
+  editId = null;
+  document.getElementById('modal-title').textContent = 'Add client';
+  ['contact','phone','fee'].forEach(f => document.getElementById('f-'+f).value='');
+  document.getElementById('f-house').value = '';
+  document.getElementById('device-rows').innerHTML = '';
+  addDeviceRow();
+  document.getElementById('f-start').value = todayISO();
+  updateExpiry();
+  document.getElementById('f-clientstatus').value = 'active';
+  onClientStatusChange();
+  document.getElementById('f-status').value = 'pending';
+  document.getElementById('downpay-wrap').style.display = 'none';
+  document.getElementById('f-downpay').value = '';
+  clearErrors();
+  document.getElementById('client-modal').classList.add('open');
+}
+
+function openEditModal(id) {
+  editId = id;
+  const c = db.clients.find(x=>x.id===id);
+  if (!c) return;
+  document.getElementById('modal-title').textContent = 'Edit client';
+  document.getElementById('f-house').value   = c.house   || '';
+  document.getElementById('f-contact').value = c.contact || '';
+  document.getElementById('f-phone').value   = c.phone   || '';
+  document.getElementById('f-fee').value     = c.fee     || '';
+  document.getElementById('f-start').value   = c.start   || todayISO();
+  updateExpiry();
+  document.getElementById('f-clientstatus').value = isActive(c) ? 'active' : 'deactivated';
+  document.getElementById('f-status').value  = getStatus(id);
+
+  // Support both old single device and new devices array
+  const devs = (c.devices && c.devices.length)
+    ? c.devices
+    : (c.device||c.mac ? [{device:c.device||'',mac:c.mac||''}] : []);
+  document.getElementById('device-rows').innerHTML = '';
+  if (devs.length) devs.forEach(d=>addDeviceRow(d.device,d.mac));
+  else addDeviceRow();
+
+  const rec = getPayRec(id, currentMonth());
+  document.getElementById('downpay-wrap').style.display =
+    getStatus(id)==='partial'?'block':'none';
+  document.getElementById('f-downpay').value = rec.paid||'';
+  onClientStatusChange();
+  clearErrors();
+  document.getElementById('client-modal').classList.add('open');
+}
+
+function clearErrors() {
+  ['house','contact','mac','fee'].forEach(f=>{
+    const el=document.getElementById('e-'+f);if(el)el.textContent='';
+  });
+}
+
+function saveClient() {
+  clearErrors();
+  let ok = true;
+  [['house','House number required'],['contact','Client name required'],['fee','Monthly fee required']].forEach(([f,m])=>{
+    if (!document.getElementById('f-'+f).value.trim()) {
+      document.getElementById('e-'+f).textContent=m; ok=false;
+    }
+  });
+  const devices = collectDevices();
+  if (!devices.some(d=>d.mac)) {
+    document.getElementById('e-mac').textContent='At least one MAC address is required'; ok=false;
+  }
+  if (!ok) return;
+
+  const cm     = currentMonth();
+  const status = document.getElementById('f-status').value;
+  const fee    = Number(document.getElementById('f-fee').value);
+  const id     = editId || Date.now().toString(36)+Math.random().toString(36).slice(2);
+
+  const client = {
+    id,
+    house:   document.getElementById('f-house').value.trim(),
+    contact: document.getElementById('f-contact').value.trim(),
+    phone:   document.getElementById('f-phone').value.trim(),
+    devices: devices.map((d,i)=>({id:'dev'+i, device:d.device, mac:d.mac})),
+    // also store flattened first device for Sheets backward compat
+    device:  devices[0]?.device || '',
+    mac:     devices[0]?.mac    || '',
+    fee,
+    status: document.getElementById('f-clientstatus').value,
+    start: document.getElementById('f-start').value,
+    end:   addDays(document.getElementById('f-start').value, 30),
+  };
+
+  if (editId) {
+    const idx = db.clients.findIndex(x=>x.id===editId);
+    if (idx>-1) db.clients[idx]=client;
+  } else {
+    db.clients.push(client);
+  }
+
+  const existingRec = getPayRec(id, cm);
+  if (client.status==='deactivated') { // no billing record for this month
+    closeModal('client-modal'); pushToSheet(); toast('Client saved as deactivated'); renderClients(); return;
+  }
+  const downpay = status==='partial' ? Number(document.getElementById('f-downpay').value||0) : status==='paid' ? fee : 0;
+  if (!db.payments[id]) db.payments[id]={};
+  // Preserve any existing promise-to-pay date — this object used to be
+  // rebuilt from scratch here with no promiseDate key at all, which
+  // silently erased it every time the client details were edited
+  // (even for something unrelated, like fixing a MAC address).
+  db.payments[id][cm] = {
+    status,
+    paid: downpay,
+    due: fee,
+    promiseDate: status==='paid' ? '' : (existingRec.promiseDate || '')
+  };
+
+  closeModal('client-modal');
+  pushToSheet();
+  toast(editId?'Client updated':'Client added');
+  renderClients();
+}
+
+// ── DELETE ─────────────────────────────────────────────────────
+function deleteClient(id) {
+  const c = db.clients.find(x=>x.id===id);
+  if (!confirm(`Remove ${c?.contact||'this client'}? Cannot be undone.`)) return;
+  db.clients = db.clients.filter(x=>x.id!==id);
+  delete db.payments[id];
+  pushToSheet();
+  toast('Client removed');
+  renderClients();
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── EXPORT VIEW ────────────────────────────────────────────────
+function renderExport() {
+  document.getElementById('main').innerHTML = `
+  <div class="page-header"><div class="page-title">Export & backup</div></div>
+  <div style="max-width:560px;display:grid;gap:10px">
+    <div class="export-card">
+      <div class="export-card-text"><strong>Clients CSV</strong><span>All clients + current month status — opens in Excel or Sheets</span></div>
+      <button class="btn btn-primary" onclick="exportCSV()">↓ CSV</button>
+    </div>
+    <div class="export-card">
+      <div class="export-card-text"><strong>Revenue CSV</strong><span>Monthly collected vs expected — last 12 months</span></div>
+      <button class="btn" onclick="exportRevenueCSV()">↓ Revenue CSV</button>
+    </div>
+    <div class="export-card">
+      <div class="export-card-text"><strong>Full JSON backup</strong><span>All clients + complete payment history</span></div>
+      <button class="btn" onclick="exportJSON()">↓ Backup</button>
+    </div>
+    <div class="export-card">
+      <div class="export-card-text"><strong>Restore from backup</strong><span>Import a previously saved JSON file</span></div>
+      <label class="btn" style="cursor:pointer">↑ Import<input type="file" accept=".json" onchange="importJSON(event)" style="display:none"></label>
+    </div>
+    <div class="export-card">
+      <div class="export-card-text"><strong>Force sync now</strong><span>Pull latest from Google Sheet</span></div>
+      <button class="btn" onclick="syncFromSheet()">⟳ Sync now</button>
+    </div>
+  </div>`;
+  renderSidebar();
+}
+
+function exportCSV() {
+  const cm=currentMonth();
+  const h=['House','Client','Phone','Devices','Monthly Fee','Paid','Balance Due','Pay Status','Promised Pay-By','Broken Promise?','Sub. Expires'];
+  const rows=db.clients.map(c=>{
+    const rec=getPayRec(c.id,cm);
+    const fee=Number(c.fee||0);
+    const paid=Number(rec.paid||0);
+    const devStr=(c.devices||[]).map(d=>`${d.device||''} [${d.mac||''}]`).join(' | ');
+    return [c.house,c.contact,c.phone,devStr,fee,paid,fee-paid,rec.status||'pending',rec.promiseDate||'',isPromiseBroken(rec)?'YES':'',c.end||''];
+  });
+  dlCSV('nettrack_clients_'+cm+'.csv',[h,...rows]);
+  toast('CSV downloaded');
+}
+
+function exportRevenueCSV() {
+  const months=getLast12Months();
+  const h=['Month','Expected','Collected','Pending','Collection %'];
+  const rows=months.map(m=>{
+    const exp=db.clients.reduce((s,c)=>s+expectedFor(c,m),0);
+    const col=db.clients.reduce((s,c)=>s+Number(getPayRec(c.id,m).paid||0),0);
+    return [fmtMonth(m),exp,col,exp-col,Math.round(col/Math.max(exp,1)*100)+'%'];
+  });
+  dlCSV('nettrack_revenue_'+currentMonth()+'.csv',[h,...rows]);
+  toast('Revenue CSV downloaded');
+}
+
+function exportJSON() {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));
+  a.download='nettrack_backup_'+currentMonth()+'.json';a.click();
+  toast('Backup downloaded');
+}
+
+function importJSON(e) {
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const imp=JSON.parse(ev.target.result);
+      if(!imp.clients)throw new Error();
+      if(!confirm(`Import ${imp.clients.length} clients? Replaces current data.`))return;
+      db=imp;pushToSheet();toast('Imported');renderClients();
+    }catch(err){alert('Invalid backup file.');}
+  };r.readAsText(f);
+}
+
+function dlCSV(name, rows) {
+  const csv=rows.map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=name;a.click();
+}
+
+// ── SETTINGS VIEW ──────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('main').innerHTML = `
+  <div class="page-header"><div class="page-title">Settings</div></div>
+  <div style="max-width:540px">
+    <div class="settings-card">
+      <div class="settings-title">🔗 Google Sheet sync</div>
+      <div class="fg" style="margin-bottom:12px">
+        <label>Apps Script Web App URL</label>
+        <input type="url" id="s-url" placeholder="https://script.google.com/macros/s/…/exec" value="${settings.url}">
+      </div>
+      <div class="fg" style="margin-bottom:14px">
+        <label>Token (secret)</label>
+        <input type="text" id="s-token" placeholder="Your secret token" value="${settings.token}">
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">Save & test connection</button>
+    </div>
+    <div class="settings-card" style="font-size:12px;color:var(--muted)">
+      <div style="font-weight:500;color:var(--text);margin-bottom:6px">How to set up Google Sheets sync</div>
+      1. Open a new Google Sheet — name it <strong>NetTrack Database</strong><br>
+      2. Go to <strong>Extensions → Apps Script</strong><br>
+      3. Delete the default code and paste the provided Apps Script code<br>
+      4. Change the <code>TOKEN</code> at the top to any secret word you choose<br>
+      5. Click <strong>Deploy → New deployment → Web app</strong><br>
+      6. Set Execute as: <em>Me</em>, Who has access: <em>Anyone</em><br>
+      7. Copy the Web App URL and paste it above along with your token<br>
+      8. Click <strong>Save & test connection</strong>
+    </div>
+  </div>`;
+  renderSidebar();
+}
+
+async function saveSettings() {
+  settings = {
+    url:   document.getElementById('s-url').value.trim(),
+    token: document.getElementById('s-token').value.trim()
+  };
+  localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
+  if (settings.url && settings.token) {
+    toast('Testing connection…');
+    await syncFromSheet();
+    // syncFromSheet sets the badge — just add a toast based on result
+    const badge = document.getElementById('sync-badge');
+    if (badge.classList.contains('s-ok')) {
+      toast('✓ Connected and synced with Google Sheet!');
+    } else {
+      toast('Connection failed — check URL and token, then re-deploy the script', true);
+    }
+  } else {
+    toast('Settings saved — add your URL and token to enable sync', true);
+  }
+}
+</script>
+</body>
+</html>
